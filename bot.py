@@ -2,6 +2,12 @@ import discord
 from discord.ext import commands
 import asyncio
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+TOKEN = os.getenv("TOKEN")
+
 intents = discord.Intents.default()
 intents.members = True  # 👈 이거 필수!
 
