@@ -58,4 +58,4 @@ async def on_member_remove(member):
         await channel.send(f"⚠️ {member} 나감 (확인 불가)")
 
 # -------------------- 실행 --------------------
-bot.run("MTQ5MTQwMDM2MzM3NzY5Mjg0Mw.Gevlu8.PuwYpG_1y_6ahvwtb-lLJKwyPREPIIVLLsPkSk")
+bot.run(TOKEN)
