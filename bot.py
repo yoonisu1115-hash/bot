@@ -2,23 +2,40 @@ import discord
 from discord.ext import commands
 import asyncio
 
-from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 import os
+from dotenv import load_dotenv
 
+# ----------------- keep alive -----------------
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "I'm alive"
+
+def run():
+    app.run(host="0.0.0.0", port=10000)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# ----------------- bot -----------------
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
 intents = discord.Intents.default()
-intents.members = True  # 👈 이거 필수!
+intents.members = True
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# -------------------- 준비 --------------------
 @bot.event
 async def on_ready():
     print(f"✅ 로그인됨: {bot.user}")
 
-# -------------------- 밴 감지 --------------------
+# ----------------- ban detect -----------------
 @bot.event
 async def on_member_ban(guild, user):
     channel = discord.utils.get(guild.text_channels, name="log")
@@ -29,16 +46,14 @@ async def on_member_ban(guild, user):
     try:
         async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.ban):
             if entry.target.id == user.id:
-                await channel.send(
-                    f"🚨 [밴]\n👤 유저: {user}\n👮 관리자: {entry.user}"
-                )
+                await channel.send(f"🚨 [밴]\n👤 {user}\n👮 {entry.user}")
                 return
     except:
         pass
 
-    await channel.send(f"🚨 [밴]\n👤 유저: {user} (관리자 확인 불가)")
+    await channel.send(f"🚨 [밴]\n👤 {user}")
 
-# -------------------- 킥 + 나감 감지 --------------------
+# ----------------- kick + leave -----------------
 @bot.event
 async def on_member_remove(member):
     guild = member.guild
@@ -47,21 +62,19 @@ async def on_member_remove(member):
     if not channel:
         return
 
-    await asyncio.sleep(1)  # 감사 로그 반영 대기
+    await asyncio.sleep(1)
 
     try:
         async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.kick):
             if entry.target.id == member.id:
-                await channel.send(
-                    f"👢 [킥]\n👤 유저: {member}\n👮 관리자: {entry.user}"
-                )
+                await channel.send(f"👢 [킥]\n👤 {member}\n👮 {entry.user}")
                 return
 
-        # 킥 로그 없으면 그냥 나간 것
-        await channel.send(f"🚪 [나감]\n👤 유저: {member}")
+        await channel.send(f"🚪 [나감]\n👤 {member}")
 
     except:
-        await channel.send(f"⚠️ {member} 나감 (확인 불가)")
+        await channel.send(f"⚠️ {member} 나감")
 
-# -------------------- 실행 --------------------
+# ----------------- start -----------------
+keep_alive()
 bot.run(TOKEN)
