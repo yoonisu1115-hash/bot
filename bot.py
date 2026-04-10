@@ -1,117 +1,79 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
-import asyncio
 from datetime import timedelta
-import time
-
-from flask import Flask
-from threading import Thread
 import os
 from dotenv import load_dotenv
 
-# ---------------- KEEP ALIVE ----------------
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "I'm alive"
-
-def run():
-    app.run(host="0.0.0.0", port=10000)
-
-def keep_alive():
-    Thread(target=run).start()
-
-# ---------------- BOT SETUP ----------------
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
 intents = discord.Intents.default()
-intents.members = True
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ---------------- DATA ----------------
-bad_words = {}
-warn_count = {}
+bad_words = set()
+warn = {}
 
-PLAN_ROLE = "기획팀"
+ROLE_NAME = "기획팀"
 
 # ---------------- ROLE CHECK ----------------
-def has_role(member):
-    return any(role.name == PLAN_ROLE for role in member.roles)
+def is_planner(member: discord.Member):
+    return any(role.name == ROLE_NAME for role in member.roles)
 
-# ---------------- LOG SYSTEM ----------------
+# ---------------- LOG ----------------
 async def log(guild, msg):
     channel = discord.utils.get(guild.text_channels, name="log")
     if channel:
         await channel.send(msg)
 
-        # 기획팀 멘션
-        for member in guild.members:
-            if has_role(member):
-                await channel.send(f"📢 {member.mention} 기획팀 알림")
-
-# ---------------- PUNISH SYSTEM ----------------
-async def punish(member, guild, word, content):
+# ---------------- PUNISH ----------------
+async def punish(member, guild, word, message: discord.Message):
     uid = member.id
-    warn_count[uid] = warn_count.get(uid, 0) + 1
-    count = warn_count[uid]
+    warn[uid] = warn.get(uid, 0) + 1
+    count = warn[uid]
 
-    # DM 전송
+    proof = (
+        f"📌 원본 증거\n"
+        f"유저: {member}\n"
+        f"내용: {message.content}\n"
+        f"채널: {message.channel}\n"
+        f"링크: {message.jump_url}"
+    )
+
     try:
         await member.send(
             f"🚨 금칙어 감지\n"
-            f"사유: 금칙어 '{word}' 사용\n"
-            f"내용: {content}\n"
-            f"현재 경고: {count}회"
+            f"단어: {word}\n"
+            f"경고: {count}회\n\n"
+            f"{proof}"
         )
     except:
         pass
 
-    # 단계별 처벌
     if count == 1:
-        await log(guild, f"⚠️ [경고]\n유저: {member}\n증거: {content}")
+        await log(guild, f"⚠️ 1회 경고\n{proof}")
 
     elif count == 2:
         await member.timeout(discord.utils.utcnow() + timedelta(minutes=5))
-        await log(guild, f"⏱ [5분 타임아웃]\n유저: {member}\n증거: {content}")
+        await log(guild, f"⏱ 5분 타임아웃\n{proof}")
 
     elif count == 3:
         await member.timeout(discord.utils.utcnow() + timedelta(days=1))
-        await log(guild, f"⏱ [1일 타임아웃]\n유저: {member}\n증거: {content}")
+        await log(guild, f"⏱ 1일 타임아웃\n{proof}")
 
     elif count == 4:
         await member.timeout(discord.utils.utcnow() + timedelta(days=7))
-        await log(guild, f"⏱ [1주 타임아웃]\n유저: {member}\n증거: {content}")
+        await log(guild, f"⏱ 1주 타임아웃\n{proof}")
 
     else:
         await member.timeout(discord.utils.utcnow() + timedelta(days=30))
-        await log(guild, f"⏱ [1달 타임아웃]\n유저: {member}\n증거: {content}")
+        await log(guild, f"⏱ 1달 타임아웃\n{proof}")
 
-# ---------------- BAD WORD COMMANDS ----------------
-@bot.command()
-async def 금칙어추가(ctx, word):
-    if not has_role(ctx.author):
-        return await ctx.send("권한 없음")
-
-    bad_words[word] = True
-    await ctx.send(f"추가됨: {word}")
-
-@bot.command()
-async def 금칙어삭제(ctx, word):
-    if not has_role(ctx.author):
-        return await ctx.send("권한 없음")
-
-    bad_words.pop(word, None)
-    await ctx.send(f"삭제됨: {word}")
-
-@bot.command()
-async def 금칙어목록(ctx):
-    await ctx.send(", ".join(bad_words.keys()) or "없음")
-
-# ---------------- MESSAGE DETECT ----------------
+# ---------------- MESSAGE CHECK ----------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -120,31 +82,43 @@ async def on_message(message):
     for word in bad_words:
         if word in message.content:
             await message.delete()
-
-            await punish(
-                message.author,
-                message.guild,
-                word,
-                message.content
-            )
+            await punish(message.author, message.guild, word, message)
             break
 
     await bot.process_commands(message)
 
-# ---------------- BAN / KICK LOG ----------------
-@bot.event
-async def on_member_ban(guild, user):
-    await log(guild, f"🚨 [밴 발생]\n유저: {user}")
+# ---------------- SLASH COMMANDS ----------------
 
-@bot.event
-async def on_member_remove(member):
-    await log(member.guild, f"🚪 [나감]\n유저: {member}")
+@bot.tree.command(name="금칙어추가", description="금칙어 추가")
+async def 금칙어추가(interaction: discord.Interaction, word: str):
+
+    if not is_planner(interaction.user):
+        return await interaction.response.send_message("권한 없음", ephemeral=True)
+
+    bad_words.add(word)
+    await interaction.response.send_message(f"추가됨: {word}")
+
+@bot.tree.command(name="금칙어삭제", description="금칙어 삭제")
+async def 금칙어삭제(interaction: discord.Interaction, word: str):
+
+    if not is_planner(interaction.user):
+        return await interaction.response.send_message("권한 없음", ephemeral=True)
+
+    bad_words.discard(word)
+    await interaction.response.send_message(f"삭제됨: {word}")
+
+@bot.tree.command(name="금칙어목록", description="금칙어 목록")
+async def 금칙어목록(interaction: discord.Interaction):
+
+    if not bad_words:
+        return await interaction.response.send_message("없음")
+
+    await interaction.response.send_message(", ".join(bad_words))
 
 # ---------------- READY ----------------
 @bot.event
 async def on_ready():
+    await bot.tree.sync()
     print(f"로그인됨: {bot.user}")
 
-# ---------------- START ----------------
-keep_alive()
 bot.run(TOKEN)
