@@ -12,7 +12,7 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
 # ⚠️ 너 서버 ID 넣어라
-GUILD_ID = 123456789012345678
+GUILD_ID = 1482003697830596774
 
 intents = discord.Intents.default()
 intents.message_content = True
