@@ -12,7 +12,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix=None, intents=intents)
 
 # ---------------- DATA ----------------
 bad_words = set()
@@ -73,7 +73,7 @@ async def punish(member, guild, word, message: discord.Message):
         await member.timeout(discord.utils.utcnow() + timedelta(days=30))
         await log(guild, f"⏱ 1달 타임아웃\n{proof}")
 
-# ---------------- MESSAGE CHECK ----------------
+# ---------------- MESSAGE DETECT ----------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -84,8 +84,6 @@ async def on_message(message):
             await message.delete()
             await punish(message.author, message.guild, word, message)
             break
-
-    await bot.process_commands(message)
 
 # ---------------- SLASH COMMANDS ----------------
 
@@ -107,7 +105,7 @@ async def 금칙어삭제(interaction: discord.Interaction, word: str):
     bad_words.discard(word)
     await interaction.response.send_message(f"삭제됨: {word}")
 
-@bot.tree.command(name="금칙어목록", description="금칙어 목록")
+@bot.tree.command(name="금칙어목록", description="금칙어 목록 보기")
 async def 금칙어목록(interaction: discord.Interaction):
 
     if not bad_words:
@@ -115,7 +113,7 @@ async def 금칙어목록(interaction: discord.Interaction):
 
     await interaction.response.send_message(", ".join(bad_words))
 
-# ---------------- READY ----------------
+# ---------------- SYNC ----------------
 @bot.event
 async def on_ready():
     await bot.tree.sync()
