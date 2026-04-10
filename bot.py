@@ -11,7 +11,7 @@ from collections import defaultdict
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-# ⚠️ 너 서버 ID 넣어라
+# ⚠️ 서버 ID 넣어라
 GUILD_ID = 1482003697830596774
 
 intents = discord.Intents.default()
@@ -28,8 +28,8 @@ ROLE_NAME = "기획팀"
 
 # 관리자 남용 감지
 mod_actions = defaultdict(list)
-LIMIT = 3        # 몇 명 이상
-TIME_WINDOW = 60 # 몇 초 안
+LIMIT = 3
+TIME_WINDOW = 60
 
 # ---------------- 역할 체크 ----------------
 def is_planner(member: discord.Member):
@@ -60,11 +60,8 @@ async def check_abuse(guild, moderator: discord.Member):
 
         if role and role in moderator.roles:
             await moderator.remove_roles(role)
-
             await log(guild,
-                f"🚨 권한 남용 감지\n"
-                f"관리자: {moderator}\n"
-                f"기획팀 역할 제거됨"
+                f"🚨 권한 남용 감지\n관리자: {moderator}\n기획팀 역할 제거됨"
             )
 
 # ---------------- 처벌 ----------------
@@ -152,7 +149,7 @@ async def on_member_update(before, after):
 
 # ---------------- 슬래시 명령어 ----------------
 
-@app_commands.command(name="금칙어추가", description="금칙어 추가")
+@bot.tree.command(name="금칙어추가", description="금칙어 추가")
 async def add_badword(interaction: discord.Interaction, word: str):
 
     if not is_planner(interaction.user):
@@ -161,7 +158,7 @@ async def add_badword(interaction: discord.Interaction, word: str):
     bad_words.add(word)
     await interaction.response.send_message(f"추가됨: {word}")
 
-@app_commands.command(name="금칙어삭제", description="금칙어 삭제")
+@bot.tree.command(name="금칙어삭제", description="금칙어 삭제")
 async def remove_badword(interaction: discord.Interaction, word: str):
 
     if not is_planner(interaction.user):
@@ -170,7 +167,7 @@ async def remove_badword(interaction: discord.Interaction, word: str):
     bad_words.discard(word)
     await interaction.response.send_message(f"삭제됨: {word}")
 
-@app_commands.command(name="금칙어목록", description="금칙어 목록")
+@bot.tree.command(name="금칙어목록", description="금칙어 목록")
 async def list_badword(interaction: discord.Interaction):
 
     if not bad_words:
@@ -183,17 +180,10 @@ async def list_badword(interaction: discord.Interaction):
 async def on_ready():
     guild = discord.Object(id=GUILD_ID)
 
-    print("슬래시 초기화...")
-    bot.tree.clear_commands(guild=guild)
-
-    print("슬래시 등록...")
-    bot.tree.add_command(add_badword, guild=guild)
-    bot.tree.add_command(remove_badword, guild=guild)
-    bot.tree.add_command(list_badword, guild=guild)
-
+    print("슬래시 동기화 중...")
     await bot.tree.sync(guild=guild)
-
     print("슬래시 동기화 완료")
+
     print(f"로그인됨: {bot.user}")
 
 bot.run(TOKEN)
