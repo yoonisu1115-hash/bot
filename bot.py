@@ -8,29 +8,32 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
+# ⚠️ 여기에 너 서버 ID 넣어라
+GUILD_ID = 1482003697830596774  # ← 수정 필수
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix=None, intents=intents)
 
-# ---------------- DATA ----------------
+# ---------------- 데이터 ----------------
 bad_words = set()
 warn = {}
 
 ROLE_NAME = "기획팀"
 
-# ---------------- ROLE CHECK ----------------
+# ---------------- 역할 체크 ----------------
 def is_planner(member: discord.Member):
     return any(role.name == ROLE_NAME for role in member.roles)
 
-# ---------------- LOG ----------------
+# ---------------- 로그 ----------------
 async def log(guild, msg):
     channel = discord.utils.get(guild.text_channels, name="log")
     if channel:
         await channel.send(msg)
 
-# ---------------- PUNISH ----------------
+# ---------------- 처벌 ----------------
 async def punish(member, guild, word, message: discord.Message):
     uid = member.id
     warn[uid] = warn.get(uid, 0) + 1
@@ -73,7 +76,7 @@ async def punish(member, guild, word, message: discord.Message):
         await member.timeout(discord.utils.utcnow() + timedelta(days=30))
         await log(guild, f"⏱ 1달 타임아웃\n{proof}")
 
-# ---------------- MESSAGE DETECT ----------------
+# ---------------- 메시지 감지 ----------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -85,10 +88,10 @@ async def on_message(message):
             await punish(message.author, message.guild, word, message)
             break
 
-# ---------------- SLASH COMMANDS ----------------
+# ---------------- 슬래시 명령어 ----------------
 
-@bot.tree.command(name="금칙어추가", description="금칙어 추가")
-async def 금칙어추가(interaction: discord.Interaction, word: str):
+@bot.tree.command(name="금칙어추가", description="금칙어 추가", guild=discord.Object(id=GUILD_ID))
+async def add_badword(interaction: discord.Interaction, word: str):
 
     if not is_planner(interaction.user):
         return await interaction.response.send_message("권한 없음", ephemeral=True)
@@ -96,8 +99,8 @@ async def 금칙어추가(interaction: discord.Interaction, word: str):
     bad_words.add(word)
     await interaction.response.send_message(f"추가됨: {word}")
 
-@bot.tree.command(name="금칙어삭제", description="금칙어 삭제")
-async def 금칙어삭제(interaction: discord.Interaction, word: str):
+@bot.tree.command(name="금칙어삭제", description="금칙어 삭제", guild=discord.Object(id=GUILD_ID))
+async def remove_badword(interaction: discord.Interaction, word: str):
 
     if not is_planner(interaction.user):
         return await interaction.response.send_message("권한 없음", ephemeral=True)
@@ -105,18 +108,23 @@ async def 금칙어삭제(interaction: discord.Interaction, word: str):
     bad_words.discard(word)
     await interaction.response.send_message(f"삭제됨: {word}")
 
-@bot.tree.command(name="금칙어목록", description="금칙어 목록 보기")
-async def 금칙어목록(interaction: discord.Interaction):
+@bot.tree.command(name="금칙어목록", description="금칙어 목록", guild=discord.Object(id=GUILD_ID))
+async def list_badword(interaction: discord.Interaction):
 
     if not bad_words:
         return await interaction.response.send_message("없음")
 
     await interaction.response.send_message(", ".join(bad_words))
 
-# ---------------- SYNC ----------------
+# ---------------- 시작 ----------------
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    guild = discord.Object(id=GUILD_ID)
+
+    print("슬래시 동기화 중...")
+    await bot.tree.sync(guild=guild)
+    print("슬래시 동기화 완료")
+
     print(f"로그인됨: {bot.user}")
 
 bot.run(TOKEN)
